@@ -30,20 +30,15 @@ print('Sklearn version ' + sk.__version__)
 # Read in and treat data (mostly) using pandas (none were harmed!) #
 ####################################################################
 
-# Read in data
-# background = pd.read_csv('/Users/jonvegard/github/UiO/FYS4560/atlas-outreach-data-tools-framework-1.1/background_bjet_transinv.txt', skipinitialspace=True)
-# signal     = pd.read_csv('/Users/jonvegard/github/UiO/FYS4560/atlas-outreach-data-tools-framework-1.1/signal_bjet_transinv.txt', skipinitialspace=True)
-
-background = pd.read_csv('/Users/jonvegard/github/UiO/FYS4560/atlas-outreach-data-tools-framework-1.1/background_alljets_onebjet.txt', skipinitialspace=True)
-signal     = pd.read_csv('/Users/jonvegard/github/UiO/FYS4560/atlas-outreach-data-tools-framework-1.1/signal_alljets_onebjet.txt', skipinitialspace=True)
-
-egamma     = pd.read_csv('/Users/jonvegard/github/UiO/FYS4560/atlas-outreach-data-tools-framework-1.1/egamma_data_alljets_onebjet.txt', skipinitialspace=True)
-muons      = pd.read_csv('/Users/jonvegard/github/UiO/FYS4560/atlas-outreach-data-tools-framework-1.1/muons_data_alljets_onebjet.txt', skipinitialspace=True)
-zprime     = pd.read_csv('/Users/jonvegard/github/UiO/FYS4560/atlas-outreach-data-tools-framework-1.1/zprime_data_alljets_onebjet.txt', skipinitialspace=True)
+# Read in data to train model
+background = pd.read_csv('background_alljets_onebjet.txt', skipinitialspace=True)
+signal     = pd.read_csv('signal_alljets_onebjet.txt', skipinitialspace=True)
 
 # Create data frames in pandas
 df_b = pd.DataFrame(background)
 df_s = pd.DataFrame(signal)
+
+# If you want to use a subset of the signal data
 # df_s = df_s[:200000]
 
 # Check properties of data
@@ -71,6 +66,7 @@ print("data.shape = {} {}".format(train.shape, test.shape))
 # Define features to train on and target numbers (used below)
 # Convert to array for scikit using values
 # ravel is used to avoid [[n]], i.e. n x 1 arrays
+# Defining two feature_list, one with mass variables and one without
 feature_list = ["lepton.pt()", "lepton.eta()", "lepton.phi()", "b_jet.pt()", "b_jet.eta()", "b_jet.phi()", "etmiss.et()", "etmiss.phi()", "TransMass", "InvMass"]
 # feature_list = ["lepton.pt()", "lepton.eta()", "lepton.phi()", "b_jet.pt()", "b_jet.eta()", "b_jet.phi()", "etmiss.et()", "etmiss.phi()"]
 print("Feature list: %s" %(feature_list))
@@ -80,10 +76,6 @@ features = train[feature_list].values
 target   = train[target_list].values.ravel()
 features_test = test[feature_list].values
 target_test   = test[target_list].values.ravel()
-
-egamma_features = egamma[feature_list].values
-zprime_features = zprime[feature_list].values
-muons_features  = muons[feature_list].values
 
 ###################################
 # Random decision tree regression #
@@ -95,9 +87,7 @@ Note: depth of trees must be sufficient to recreate quantities of interest
 given available features, e.g. invariant mass needs depth > 4
 """
 
-# Create regressor
-# Call signature
-# Fit to data
+# Define training parameters and call the classifier
 params = {'n_estimators': 100, 'max_depth': 1, 'random_state': 42, 'learning_rate': 0.1, 'verbose' : 1,
 'subsample' : .5}
 # clf = ensemble.GradientBoostingClassifier(**params)
@@ -105,11 +95,10 @@ params = {'n_estimators': 100, 'max_depth': 1, 'random_state': 42, 'learning_rat
 
 # Saving model
 from sklearn.externals import joblib
-# joblib.dump(clf, 'all_jets/AllData_depth1_n_estimators100.pkl')
-# How to load the model
-# clf = joblib.load('with_trans_inv_masses/tquark_bdt_transmass_invmass5.pkl')
-# clf = joblib.load('without_trans_inv_masses/tquark_bdt3.pkl')
-clf = joblib.load('all_jets/AllData_depth1_n_estimators100_TransInv.pkl')
+# joblib.dump(clf, 'AllData_depth1_n_estimators100_TransInv.pkl')
+# Load premade model with depth 1, 100 estimators and with transverse
+# and invariant masses.
+clf = joblib.load('AllData_depth1_n_estimators100_TransInv.pkl')
 
 predicted = clf.predict(features_test)
 
@@ -135,20 +124,17 @@ plt.yticks(pos, feature_list[sorted_importance])
 plt.xlabel('Relative Importance')
 plt.title("\n".join(textwrap.wrap('Variable importance, params = {}'.format(params), 80)),fontsize=11)
 plt.tight_layout()
-# plt.savefig('all_jets/var_imp_alljets_d1.pdf')
+plt.savefig('var_imp_alljets_d1.pdf')
 
 
-# Compute test set deviance
+# Compute test and plot deviances
 test_score = np.zeros( (params['n_estimators'],) )
 
 # Use staged_decision_function for classification:
 for i, y_pred in enumerate( clf.staged_decision_function(features_test) ):
     test_score[i] = clf.loss_(target_test, y_pred)
 
-# min loss according to test (normalize such that first loss is 0)
-# test_score  -= test_score[0]
 train_score = clf.train_score_
-# train_score -= clf.train_score_[0]
 
 plt.figure(3)
 plt.title("\n".join(textwrap.wrap('Deviance, params = {}'.format(params), 80)),fontsize=11)
@@ -159,5 +145,5 @@ plt.plot(np.arange(params['n_estimators']) + 1, train_score,
 plt.legend(loc='upper right')
 plt.xlabel('Boosting Iterations')
 plt.ylabel('Deviance')
-# plt.savefig('all_jets/deviance_alljets_d1.pdf')
+plt.savefig('deviance_alljets_d1.pdf')
 plt.show()
